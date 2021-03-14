@@ -177,3 +177,6 @@ dmypy.json
 
 #dsstore
 *.DS_Store
+#vids
+*.avi
+*.mp4
