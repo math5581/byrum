@@ -1,8 +1,8 @@
 import numpy as np 
-from classes.scrap.kalmanFilter import KalmanFilter
+from classes.kalmanFilter import KalmanFilter
 from scipy.optimize import linear_sum_assignment
 from collections import deque
-
+import cv2
 
 class Tracks(object):
 	"""docstring for Tracks"""
@@ -16,9 +16,11 @@ class Tracks(object):
 		self.trackId = trackId
 		self.skipped_frames = 0
 
+
 	def predict(self,detection):
 		self.prediction = np.array(self.KF.predict()).reshape(1,2)
 		self.KF.correct(np.matrix(detection).reshape(2,1))
+		self.skipped_frames = 0
 
 
 class Tracker(object):
@@ -30,8 +32,36 @@ class Tracker(object):
 		self.max_trace_length = max_trace_length
 		self.trackId = 0
 		self.tracks = []
+		self.trackColors=[(255, 0, 0), (0, 255, 0), (0, 0, 255), (255, 255, 0),
+				(127, 127, 255), (255, 0, 255), (255, 127, 255),
+				(127, 0, 255), (127, 0, 127),(127, 10, 255), (0,255, 127)]
+
+	def get_current_trackers(self):
+		return self.tracks
+
+	def visualize_on_frame(self,fram,trans):
+		for j in range(len(self.tracks)):
+			if (len(self.tracks[j].trace) > 1):
+				x = self.tracks[j].trace[-1][0, 0]
+				y = self.tracks[j].trace[-1][0, 1]
+				x, y = trans.get_image_coordinates(x, y)
+				tl = (x - 10, y - 10)
+				br = (x + 10, y + 10)
+
+				cv2.rectangle(fram, tl, br, self.trackColors[j], 1)
+				cv2.putText(fram, str(self.tracks[j].trackId), (x - 10, y - 20), 0, 0.5, self.trackColors[j], 2)
+				for k in range(len(self.tracks[j].trace)):
+					x = self.tracks[j].trace[k][0, 0]
+					y = self.tracks[j].trace[k][0, 1]
+					x, y = trans.get_image_coordinates(x, y)
+					cv2.circle(fram, (x, y), 3, self.trackColors[j], -1)
+				cv2.circle(fram, (x, y), 6, self.trackColors[j], -1)
+		return fram
 
 	def update(self, detections):
+		for i in range(0,len(self.tracks)):
+			self.tracks[i].skipped_frames += 1
+
 		if len(self.tracks) == 0:
 			for i in range(detections.shape[0]):
 				track = Tracks(detections[i], self.trackId)
@@ -59,10 +89,11 @@ class Tracker(object):
 					assignment[i] = -1
 					un_assigned_tracks.append(i)
 				else:
-					self.tracks[i].skipped_frames +=1
+					self.tracks[i].skipped_frames += 1
 
 		del_tracks = []
 		for i in range(len(self.tracks)):
+			#print('id', self.tracks[i].trackId, '  skipped frames  ', self.tracks[i].skipped_frames)
 			if self.tracks[i].skipped_frames > self.max_frame_skipped :
 				del_tracks.append(i)
 
@@ -83,7 +114,6 @@ class Tracker(object):
 				self.tracks[i].skipped_frames = 0
 				self.tracks[i].predict(detections[assignment[i]])
 			self.tracks[i].trace.append(self.tracks[i].prediction)
-
 
 
 

@@ -1,66 +1,116 @@
-#################### Import Section of the code #############################
+'''
+    File name         : KalmanFilter.py
+    Description       : KalmanFilter class used for object tracking
+    Author            : Rahmad Sadli
+    Date created      : 20/02/2020
+    Python Version    : 3.7
+'''
 
-try:
-	import numpy as np	
-except Exception as e:
-	print(e,"\nPlease Install the package")
-
-#################### Import Section ends here ################################
-
+import numpy as np
+import matplotlib.pyplot as plt
 
 class KalmanFilter(object):
-	"""docstring for KalmanFilter"""
-
-	def __init__(self, dt=0.2,stateVariance=0.1,measurementVariance=0.01,
-														method="Velocity" ):
-		super(KalmanFilter, self).__init__()
-		self.method = method
-		self.stateVariance = stateVariance
-		self.measurementVariance = measurementVariance
-		self.dt = dt
-		self.initModel()
-	
-	"""init function to initialise the model"""
-	def initModel(self): 
-		if self.method == "Accerelation":
-			self.U = 1
-		else: 
-			self.U = 0
-		self.A = np.matrix( [[1 ,self.dt, 0, 0], [0, 1, 0, 0], 
-										[0, 0, 1, self.dt],  [0, 0, 0, 1]] )
-
-		self.B = np.matrix( [[self.dt**2/2], [self.dt], [self.dt**2/2], 
-																[self.dt]] )
-		
-		self.H = np.matrix( [[1,0,0,0], [0,0,1,0]] ) 
-		self.P = np.matrix(self.stateVariance*np.identity(self.A.shape[0]))
-		self.R = np.matrix(self.measurementVariance*np.identity(
-															self.H.shape[0]))
-		
-		self.Q = np.matrix( [[self.dt**4/4 ,self.dt**3/2, 0, 0], 
-							[self.dt**3/2, self.dt**2, 0, 0], 
-							[0, 0, self.dt**4/4 ,self.dt**3/2],
-							[0, 0, self.dt**3/2,self.dt**2]])
-		
-		self.erroCov = self.P
-		self.state = np.matrix([[0],[1],[0],[1]])
+    def __init__(self, dt, u_x,u_y, std_acc, x_std_meas, y_std_meas,id):
+        """
+        :param dt: sampling time (time for 1 cycle)
+        :param u_x: acceleration in x-direction
+        :param u_y: acceleration in y-direction
+        :param std_acc: process noise magnitude
+        :param x_std_meas: standard deviation of the measurement in x-direction
+        :param y_std_meas: standard deviation of the measurement in y-direction
+        """
+        self.set_tracker_id(id)
 
 
-	"""Predict function which predicst next state based on previous state"""
-	def predict(self):
-		self.predictedState = self.A*self.state + self.B*self.U
-		self.predictedErrorCov = self.A*self.erroCov*self.A.T + self.Q
-		temp = np.asarray(self.predictedState)
-		return temp[0], temp[2]
 
-	"""Correct function which correct the states based on measurements"""
-	def correct(self, currentMeasurement):
-		self.kalmanGain = self.predictedErrorCov*self.H.T*np.linalg.pinv(
-								self.H*self.predictedErrorCov*self.H.T+self.R)
-		self.state = self.predictedState + self.kalmanGain*(currentMeasurement
-											   - (self.H*self.predictedState))
-		
 
-		self.erroCov = (np.identity(self.P.shape[0]) - 
-								self.kalmanGain*self.H)*self.predictedErrorCov
+        # Define sampling time
+        self.dt = dt
 
+        # Define the  control input variables
+        self.u = np.matrix([[u_x],[u_y]])
+
+        # Intial State
+        self.x = np.matrix([[0], [0], [0], [0]])
+
+        # Define the State Transition Matrix A
+        self.A = np.matrix([[1, 0, self.dt, 0],
+                            [0, 1, 0, self.dt],
+                            [0, 0, 1, 0],
+                            [0, 0, 0, 1]])
+
+        # Define the Control Input Matrix B
+        self.B = np.matrix([[(self.dt**2)/2, 0],
+                            [0,(self.dt**2)/2],
+                            [self.dt,0],
+                            [0,self.dt]])
+
+        # Define Measurement Mapping Matrix
+        self.H = np.matrix([[1, 0, 0, 0],
+                            [0, 1, 0, 0]])
+
+        #Initial Process Noise Covariance
+        self.Q = np.matrix([[(self.dt**4)/4, 0, (self.dt**3)/2, 0],
+                            [0, (self.dt**4)/4, 0, (self.dt**3)/2],
+                            [(self.dt**3)/2, 0, self.dt**2, 0],
+                            [0, (self.dt**3)/2, 0, self.dt**2]]) * std_acc**2
+
+        #Initial Measurement Noise Covariance
+        self.R = np.matrix([[x_std_meas**2,0],
+                           [0, y_std_meas**2]])
+
+        #Initial Covariance Matrix
+        self.P = np.eye(self.A.shape[1])
+
+        self.set_predicted_state(self.x)
+
+    def set_tracker_id(self,id):
+        self.tracker_id=id
+
+    def get_tracker_id(self):
+        return self.tracker_id
+
+    def get_current_state(self):
+        return self.x[0:2]
+    def set_predicted_state(self,state):
+        self.predicted_state=state
+
+    def get_predicted_state(self):
+        return self.predicted_state
+    def predict(self):
+        # Refer to :Eq.(9) and Eq.(10)  in https://machinelearningspace.com/object-tracking-simple-implementation-of-kalman-filter-in-python/?preview_id=1364&preview_nonce=52f6f1262e&preview=true&_thumbnail_id=1795
+
+        # Update time state
+        #x_k =Ax_(k-1) + Bu_(k-1)     Eq.(9)
+        self.x = np.dot(self.A, self.x) + np.dot(self.B, self.u)
+
+        # Calculate error covariance
+        # P= A*P*A' + Q               Eq.(10)
+        self.P = np.dot(np.dot(self.A, self.P), self.A.T) + self.Q
+        self.set_predicted_state(self.x[0:2])
+        return self.x[0:2]
+
+    def update(self, z):
+
+        # Refer to :Eq.(11), Eq.(12) and Eq.(13)  in https://machinelearningspace.com/object-tracking-simple-implementation-of-kalman-filter-in-python/?preview_id=1364&preview_nonce=52f6f1262e&preview=true&_thumbnail_id=1795
+        # S = H*P*H'+R
+        S = np.dot(self.H, np.dot(self.P, self.H.T)) + self.R
+
+        # Calculate the Kalman Gain
+        # K = P * H'* inv(H*P*H'+R)
+        self.K = np.dot(np.dot(self.P, self.H.T), np.linalg.inv(S))  #Eq.(11)
+
+        self.x = np.round(self.x + np.dot(self.K, (z - np.dot(self.H, self.x))))   #Eq.(12)
+
+        I = np.eye(self.H.shape[1])
+
+        # Update error covariance matrix
+        self.P = (I - (self.K * self.H)) * self.P   #Eq.(13)
+        #print("ID_tracker",self.get_tracker_id(),"covariance matrix",self.P.sum())
+        return self.x[0:2]
+
+    def get_covariance_sum(self):
+        return np.round(self.P[0:2].sum(),4)
+
+    def get_kalman_gain(self):
+        return np.round(self.K.sum(),2)
