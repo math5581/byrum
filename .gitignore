@@ -180,3 +180,8 @@ dmypy.json
 #vids
 *.avi
 *.mp4
+
+
+# Additional local folders:
+Albert\ Files
+files
