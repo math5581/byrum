@@ -18,7 +18,7 @@ class undistortion:
             center.append(width/2)
             center.append(height/2)
 
-            fname = "../dat/JFK_mtx.pkl"
+            fname = "dat/JFK_mtx.pkl"
             with open(fname, 'rb') as f:
                 cameraParams = pickle.load(f)
             self.cameraMatrix = cameraParams["cameraMatrix"]
@@ -27,7 +27,21 @@ class undistortion:
             self.setProjectionMatrix()
 
         elif location == "Nytorv":
-            setup_here=False
+            width = 960
+            height = 540
+            ### param setup here.
+            undistortion_params = [1, 0, 0]
+            center = []
+            center.append(width / 2)
+            center.append(height / 2)
+
+            fname = "dat/NYT_mtx.pkl"
+            with open(fname, 'rb') as f:
+                cameraParams = pickle.load(f)
+            self.cameraMatrix = cameraParams["cameraMatrix"]
+            self.tvecs = cameraParams["tvecs"]
+            self.rvecs = cameraParams["rvecs"]
+            self.setProjectionMatrix()
 
         elif location == "JAG7":
             width = 960
@@ -38,7 +52,7 @@ class undistortion:
             center.append(width/2)
             center.append(height/2)
 
-            fname = "../dat/JAG7_mtx.pkl"
+            fname = "dat/JAG7_mtx.pkl"
             with open(fname, 'rb') as f:
                 cameraParams = pickle.load(f)
             self.cameraMatrix = cameraParams["cameraMatrix"]
@@ -55,7 +69,7 @@ class undistortion:
             center.append(width/2)
             center.append(height/2)
 
-            fname = "../dat/JAG10_mtx.pkl"
+            fname = "dat/JAG10_mtx.pkl"
             with open(fname, 'rb') as f:
                 cameraParams = pickle.load(f)
             self.cameraMatrix = cameraParams["cameraMatrix"]
@@ -104,36 +118,44 @@ class undistortion:
         return sol
 
     def undistort_point(self,input_point):
-
-        ### checking ROI
-        #SHould be fixed now.
-        ### NEED TO FIX THIS FOR THE JAG10
         ### Do not perform undistortion on JAG10
-        if self.location == "JAG10":
-            return input_point
-        cx=self.a[5]
-        cy=self.a[6]
-        #finding distance to center of the model.
-        dist_cent = np.sqrt(np.power((input_point[0] - cx),2)+np.power((input_point[1] - cy),2) )
-        #evaluating against the model:
-        temp = self.poly_eval(dist_cent)
-        undistorted_point=[]
-        #print(temp)
-        undistorted_point.append(int(cx + (input_point[0] - cx) * temp))
-        undistorted_point.append(int(cy + (input_point[1] - cy) * temp))
+        ### checking ROI
+        temp=self.ROI.check_roi(input_point)
 
-        #Check ROI
-        temp = self.ROI.check_roi(undistorted_point)
-        if undistorted_point[0]<0 or undistorted_point[1]<0 or undistorted_point[0]>cx*2 or undistorted_point[1]>cy*2:
-            return "Error, the chosen point is outside of the undistorted image"
+        #Undistortion is currently not working for Nytorv and JAG10
+        if self.location == "JAG10" or self.location == "Nytorv":
+            if temp:
+                return input_point
+            else:
+                return temp
+
         if temp:
+            cx=self.a[5]
+            cy=self.a[6]
+            #finding distance to center of the model.
+            dist_cent = np.sqrt(np.power((input_point[0] - cx),2)+np.power((input_point[1] - cy),2) )
+            #evaluating against the model:
+            temp = self.poly_eval(dist_cent)
+            undistorted_point=[]
+            #print(temp)
+            undistorted_point.append(int(cx + (input_point[0] - cx) * temp))
+            undistorted_point.append(int(cy + (input_point[1] - cy) * temp))
+            if undistorted_point[0]<0 or undistorted_point[1]<0 or undistorted_point[0]>cx*2 or undistorted_point[1]>cy*2:
+                return "Error, the chosen point is outside of the undistorted image"
             return undistorted_point
         else:
-            return False
-
+            return temp
 
     def setProjectionMatrix(self):
         self.Lcam=self.cameraMatrix.dot(np.hstack((cv.Rodrigues(self.rvecs[0])[0], self.tvecs[0])))
+
+    def get_world_coordinate_arr(self,arr,Z=0):
+        """ Numpy arrary of shape (N,2)"""
+        temp = []
+        for point in arr:
+            x, y = self.get_world_coordinate(point[0],point[1])[:2]
+            temp.append([x,y])
+        return np.asarray(temp)
 
     def get_world_coordinate(self,px,py,Z=0):
         #rotMat = R.from_euler('zyx', (self.rvecs[0][0][0], self.rvecs[0][1][0], self.rvecs[0][1][0]), degrees=False)
@@ -142,11 +164,6 @@ class undistortion:
         X = np.linalg.inv(np.hstack((self.Lcam[:, 0:2], np.array([[-1 * px], [-1 * py], [-1]])))).dot(
             (-Z * self.Lcam[:, 2] - self.Lcam[:, 3]))
         return np.round(X[0],2), np.round(X[1],2), Z
-
-    def get_image_coordinates(self,X,Y,Z=0):
-        hom_uv=self.Lcam.dot(np.asarray([X,Y,Z,1]))
-        uv=hom_uv/hom_uv[2]
-        return int(uv[0]), int(uv[1])
 
     def get_pixels(self,px,py,Z=0):
         mat=np.hstack((self.Lcam[:, 0:2], np.array([[-1 * px], [-1 * py], [-1]])))
@@ -224,7 +241,7 @@ class undistortion:
 
         elif camera == "kamera10":
             uv = np.array([[412, 824], [638, 663], [909, 466], [1068, 349], [1306, 186],
-                           [1265, 844], [1379, 593], [1413, 478]], dtype=np.float32)
+                           [1265, 844], [1379, 593], [1423, 478]], dtype=np.float32)
 
         elif camera == "nytorv":
             uv = np.array([[3547, 878], [2363, 1587], [1357, 2079], [2564, 1775], [935, 1612], [198, 1931], [2109, 461],
@@ -244,13 +261,12 @@ class undistortion:
 
         elif camera == "kamera10":
             xyz = np.array([[0., 0., 0.], [0, 2.33, 0.], [0, 6.79, 0.], [0, 10.79, 0.], [0, 22.48, 0.],
-                            [4, 1.72, 0.], [4, 5.39, 0], [4, 7.28, 0]], dtype=np.float32)
+                            [4, 1.72, 0.], [4, 5.39, 0], [4, 6.9, 0]], dtype=np.float32)
 
         elif camera == "nytorv":
             xyz = np.array([[0.0, 0, 0], [0.0, -6.44, 0], [0, -10.0, 0], [0.732, -7.5, 0], [-1.74, -10.0, 0],
                             [-1.74, -12.0, 0], [-6.07, -1.52, 0], [-6.07, -3.52, 0], [-6.07, -5.52, 0],
-                            [-6.07, -7.52, 0],
-                            [-6.07, -9.52, 0], [-6.07, -11.52, 0]], dtype=np.float32)
+                            [-6.07, -7.52, 0], [-6.07, -9.52, 0], [-6.07, -11.52, 0]], dtype=np.float32)
 
         else:
             print("Specify a camera")
@@ -340,11 +356,12 @@ class undistortion:
         remapped_pixels=self.remap_points(full_shape, 960, 540,coordinates)
         undistorted_pixels=[]
 
-        img=cv.imread("files/JAG10_Undist.bmp")
-        img_calib=cv.imread("../files/JAG10_corrected.bmp")
+        #img=cv.imread("files/JAG10_Undist.bmp")
+        img_calib=cv.imread("C://Users//Mathias Poulsen//Desktop//Byrum//undistort_models_python//files//JAG10_Dist.bmp")
         objt=self.getObjPts("kamera10")
         print(remapped_pixels)
-
+        self.show_frame(img_calib)
+        exit()
         undistorted_pixels=np.asarray(remapped_pixels)
         shap=undistorted_pixels.shape
         imagePointsOneBoard = np.zeros((shap[0],1, 2), np.float32)
@@ -365,11 +382,11 @@ class undistortion:
         print(ret)
         """
         #save camera matrix
-        data = {"cameraMatrix": cameraMatrix,"rvecs":rvec,"tvecs":tvec}
-        fname = "dat/JAG10_mtx.pkl"
+        #data = {"cameraMatrix": cameraMatrix,"rvecs":rvec,"tvecs":tvec}
+        #fname = "dat/JAG10_mtx.pkl"
 
-        with open(fname, 'wb') as f:
-            pickle.dump(data, f)
+        #with open(fname, 'wb') as f:
+        #    pickle.dump(data, f)
 
 
     def calibration_setup_JAG7(self):
@@ -380,20 +397,23 @@ class undistortion:
         undistorted_pixels=[]
 
         img=cv.imread("files/JAG7_Undist.bmp")
-        img_calib=cv.imread("../files/JAG7_corrected.bmp")
+        img_calib=cv.imread("C://Users//Mathias Poulsen//Desktop//Byrum//undistort_models_python//files//JAG7_Dist.bmp")
         undist_class=undistortion("JAG7")
         objt=self.getObjPts("kamera7")
         print(remapped_pixels)
         index=[]
+        print(img_calib)
+        self.show_frame(img_calib)
+
         for i in range(0,len(remapped_pixels)):
             undistorted_pixels.append(undist_class.undistort_point(remapped_pixels[i]))
             if isinstance(undistorted_pixels[i], str):
                 index.append(i)
                 pass
-            else:
+            #else:
                 #cv.circle(img,(int(remapped_pixels[i][0]),int(remapped_pixels[i][1])),2,color,-1)
-                cv.circle(img_calib,(int(undistorted_pixels[i][0]),int(undistorted_pixels[i][1])),2,color,-1)
-
+            #    cv.circle(img_calib,(int(undistorted_pixels[i][0]),int(undistorted_pixels[i][1])),2,color,-1)
+        print(undistorted_pixels)
         #print(objt)
         print(undistorted_pixels)
         #world_coord=np.asarray(world_coord,np.float32)
@@ -411,7 +431,8 @@ class undistortion:
         objectPoints=[objt]
         camera_matrix = cv.initCameraMatrix2D(objectPoints,imagePoints, (img_calib.shape[1], img_calib.shape[0]))
         RMS, cameraMatrix, distCoeff, rvec, tvec = cv.calibrateCamera(objectPoints, imagePoints, (img_calib.shape[1], img_calib.shape[0]), camera_matrix, None, flags=cv.CALIB_USE_INTRINSIC_GUESS)
-
+        print(RMS)
+        print(cameraMatrix)
         """
         previous
         ret, mtx, dist, rvecs, tvecs = cv.calibrateCamera(objectPoints, imagePoints, (img_calib.shape[1], img_calib.shape[0]), None, None)
@@ -423,3 +444,48 @@ class undistortion:
 
         #with open(fname, 'wb') as f:
         #    pickle.dump(data, f)
+
+
+    def calibration_setup_NYT(self):
+        full_shape = (2160, 3840, 3)
+        color=(0,0,255)
+        coordinates=self.getUVPts("nytorv")
+        remapped_pixels=self.remap_points(full_shape, 960, 540,coordinates)
+        undistorted_pixels=[]
+
+        #img=cv.imread("files/JAG10_Undist.bmp")
+        img_calib=cv.imread("C://Users//Mathias Poulsen//Desktop//Byrum//undistort_models_python//files//NYT_dist.bmp")
+        objt=self.getObjPts("nytorv")
+        print(remapped_pixels)
+        print(objt)
+        self.show_frame(img_calib)
+        #exit()
+        #undistorted_pixels=np.asarray(remapped_pixels)
+        remapped_pixels=np.asarray(remapped_pixels)
+        shap=remapped_pixels.shape
+        imagePointsOneBoard = np.zeros((shap[0],1, 2), np.float32)
+        for i in range(0,shap[0]):
+            imagePointsOneBoard[i,0,0]=remapped_pixels[i][0]
+            imagePointsOneBoard[i,0,1]=remapped_pixels[i][1]
+        imagePoints=[imagePointsOneBoard]
+        print(objt)
+        # Perform calibration
+        objectPoints=[objt]
+        camera_matrix = cv.initCameraMatrix2D(objectPoints,imagePoints, (img_calib.shape[1], img_calib.shape[0]))
+        RMS, cameraMatrix, distCoeff, rvec, tvec = cv.calibrateCamera(objectPoints, imagePoints, (img_calib.shape[1], img_calib.shape[0]), camera_matrix, None, flags=cv.CALIB_USE_INTRINSIC_GUESS)
+        print(RMS)
+        print(cameraMatrix)
+
+
+        """
+        previous
+        ret, mtx, dist, rvecs, tvecs = cv.calibrateCamera(objectPoints, imagePoints, (img_calib.shape[1], img_calib.shape[0]), None, None)
+        print(ret)
+        """
+        #save camera matrix
+        #data = {"cameraMatrix": cameraMatrix,"rvecs":rvec,"tvecs":tvec}
+        #fname = "dat/NYT_mtx.pkl"
+
+        #with open(fname, 'wb') as f:
+        #    pickle.dump(data, f)
+
