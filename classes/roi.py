@@ -12,10 +12,10 @@ class roi:
         if location=="Kennedy":
             self.set_roi([(106,315), (246,110),(828,116),(908,380)])
         elif location=="Nytorv":
-            print("missing ROI")
+            self.set_roi([(20, 268), (146, 534), (436, 470), (894, 226),(568, 102)])
             #self.set_roi(0)
         elif location=="JAG7":
-            self.set_roi([(265,505),(634,520),(632,137),(522,133)])
+            self.set_roi([(265,505),(634,520),(632,137),(522,133)])#(522,133)
         elif location =="JAG10":
             self.set_roi([(68,508),(510,515),(777,87),(654,90)])
 
@@ -24,9 +24,15 @@ class roi:
         self.roi_points=roi
         self.roi = Polygon(roi)
 
+    #This is changed...
     def check_roi(self,point):
         p = Point(point)
-        return p.within(self.roi)
+        temp=p.within(self.roi)
+        #temp=[]
+        #for i in range(0,len(point)):
+        #    p = Point(point[i])
+        #    temp.append(p.within(self.roi))
+        return temp
 
     def draw_roi(self):
         if self.location== "Kennedy":
@@ -51,8 +57,7 @@ class roi:
         elif self.location == "JAG10":
             img = cv.imread("files/JAG10_Dist.bmp")
         elif self.location == "Nytorv":
-            print("update nytorv")
-            img = cv.imread("files/file.bmp")
+            img = cv.imread("files/NYT_dist.bmp")
         color = (0, 0, 255)
         pts = np.array(self.roi_points, np.int32)
         pts = pts.reshape((-1, 1, 2))
