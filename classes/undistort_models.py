@@ -1,15 +1,21 @@
 import numpy as np
-import pickle
 import cv2 as cv
-from classes.roi import roi
+import pickle
 
-class undistortion:
+from shapely.geometry import point 
+from classes.roi import roi
+from classes.helper_functions import helper_functions
+import os
+import copy
+
+class undistortion(helper_functions):
     def __init__(self,location):
         #setup locations
+        helper_functions.__init__(self)
         self.location=location
         self.setup=False
 
-        if location == "Kennedy":
+        if location == "JFK":
             width = 960
             height = 540
             ### param setup here.
@@ -118,7 +124,6 @@ class undistortion:
         return sol
 
     def undistort_point(self,input_point):
-        ### Do not perform undistortion on JAG10
         ### checking ROI
         temp=self.ROI.check_roi(input_point)
 
@@ -188,6 +193,57 @@ class undistortion:
             return self.get_world_coordinate(und_poi[0],und_poi[1])
         #return points
 
+    # Functions used to verify/loop through pkl files to check if undistorted.
+
+    def check_if_dist_or_undist(self,point):
+        """ returns true if undists and false if distorted """
+        # You only have to check the first point...
+        if 0 == abs(point[0]-int(point[0])) + abs(point[1]-int(point[1])):
+            return True
+        else:
+            return False
+
+    def iterate_through_pkls(self, input_folder_pkl: str, output_folder: str):
+        fileList = os.listdir(input_folder_pkl)
+        fileList.sort()
+        print(len(fileList))
+        index = 0
+        for pkl_file in fileList:
+            fileName, ext = pkl_file.split('.')# 488
+            if ext == 'pkl'and index>=0:#  and index<600 :
+                dat = self.read_pkl_file(os.path.join(input_folder_pkl, pkl_file))
+                new_dat, undistorted = self.iterate_single_pkl(dat)
+                if undistorted:
+                    # Save the already data at new location
+                    dat.to_pickle(os.path.join(output_folder, pkl_file))
+                else:
+                    new_dat.to_pickle(os.path.join(output_folder, pkl_file))
+                    # Save the new data at new location  
+                print(index, '   ', fileName, '    ', undistorted)
+            index += 1
+    
+    def iterate_single_pkl(self,data):
+        distorted = True
+        new_data = copy.deepcopy(data)
+        for index, row in data.iterrows():
+            points = row['data']
+            try:
+                shape = points.shape[0]
+            except:
+                shape = len(points)
+            if shape != 0:
+                undistorted = self.check_if_dist_or_undist(points[0])
+                if undistorted:
+                    return data, True 
+                # why not just check the ROI instead? Everything should be outside...
+                temp = []
+                for i in range(points.shape[0]):
+                    new_point = self.undistort_point(points[i])
+                    if type(new_point) is not bool:
+                        temp.append(new_point)
+                new_data['data'][index] = np.asarray(temp, dtype=np.ndarray)
+        
+        return new_data, False 
     #functions used for setup.
 
     def callback_clik(self,event,x,y,flags,params):
