@@ -1,5 +1,6 @@
 import numpy as np
 import os
+import pickle as pkl
 
 class helper_functions:
     def __init__(self):
@@ -75,3 +76,8 @@ class helper_functions:
         except OSError:
             pass
         return output
+    
+    def read_pkl_file(self, path_pkl_file):
+        f = open(path_pkl_file, 'rb')
+        data = pkl.load(f)
+        return data

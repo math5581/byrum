@@ -9,7 +9,7 @@ class roi:
         #The ordering of the polygons is important!
         #setting up roi
         self.location=location
-        if location=="Kennedy":
+        if location=="JFK":
             self.set_roi([(106,315), (246,110),(828,116),(908,380)])
         elif location=="Nytorv":
             self.set_roi([(20, 268), (146, 534), (436, 470), (894, 226),(568, 102)])
