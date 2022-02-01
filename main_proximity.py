@@ -1,14 +1,17 @@
-import sys
-# insert at 1, 0 is the script path (or '' in REPL)
-#sys.path.insert(1, 'classes') # A bit of a hack...
 from classes.proximity import Proximity
 
-LOCATION = 'Nytorv'
+LOCATION = 'JFK'
 
 prox = Proximity(LOCATION)
 
-### Iterate through 1 pkl and save a pkl of "distances for each person"
 prox.calc_proximity_folder()
+
+#plot the stuff
+# prox.scatter_plot_proximity()
+
+# prox.change_name('/Users/mathiaspoulsen/Desktop/work2/byrum/data/prox/JAG7')
+
+# Old 
 # Undistort JAG7 again by checking ROI.
 # Check ROIS
 # JAG10 is probably already undistorted.

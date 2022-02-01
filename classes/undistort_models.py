@@ -162,6 +162,17 @@ class undistortion(helper_functions):
             temp.append([x,y])
         return np.asarray(temp)
 
+    def get_world_coordinate_dist_arr(self,arr,Z=0):
+        """ Numpy arrary of shape (N,2)"""
+        temp = []
+        for point in arr:
+            try:
+                x, y = self.get_world_coordinate_distorted(point[0],point[1])[:2]
+                temp.append([x,y])
+            except:
+                pass
+        return np.asarray(temp)
+
     def get_world_coordinate(self,px,py,Z=0):
         #rotMat = R.from_euler('zyx', (self.rvecs[0][0][0], self.rvecs[0][1][0], self.rvecs[0][1][0]), degrees=False)
         #rotMat=rotMat.as_matrix()
